@@ -1,0 +1,469 @@
+{% extends "base.html" %}
+
+{% block title %}运行状态 - XDU Reminder Service{% endblock %}
+
+{% block head %}
+<style>
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="login-progress-banner" class="alert alert-warning" style="display: {% if status.login_status == 'logging_in' or status.login_step %}flex{% else %}none{% endif %}; align-items: center; gap: 1rem;">
+  <span id="login-progress-spinner" style="border: 3px solid rgba(0,0,0,0.1); border-top-color: var(--primary); border-radius: 50%; width: 22px; height: 22px; animation: spin 1s linear infinite; display: {% if status.login_status == 'logging_in' %}inline-block{% else %}none{% endif %}; flex-shrink: 0;"></span>
+  <div>
+    <strong>认证状态与进度：</strong><br>
+    <span id="login-step-text">{{ status.login_step or '正在等待或已登录' }}</span>
+  </div>
+</div>
+
+{% if status.login_error %}
+<div class="alert alert-danger">
+  <strong>登录错误：</strong>{{ status.login_error }}
+  <div style="margin-top: 0.5rem;">
+    <a href="{{ url_for('do_login') }}" class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">重试登录</a>
+    <a href="{{ url_for('setup') }}" class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">检查配置</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <!-- 服务状态卡片 -->
+  <div class="card">
+    <div class="card-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+      </svg>
+      系统运行状态
+    </div>
+    
+    <div style="margin-bottom: 1rem;">
+      <span style="color: var(--text-muted); font-size: 0.9rem;">认证登录状态：</span>
+      {% if status.login_status == 'logged_in' %}
+        <span class="badge badge-success">已成功登录</span>
+      {% elif status.login_status == 'logging_in' %}
+        <span class="badge badge-info">正在登录与解密中...</span>
+      {% elif status.login_status == 'need_captcha' %}
+        <span class="badge badge-warning">等待人机验证</span>
+      {% elif status.login_status == 'need_mfa' %}
+        <span class="badge badge-warning">等待二次认证</span>
+      {% elif status.login_status == 'error' %}
+        <span class="badge badge-danger">登录异常</span>
+      {% else %}
+        <span class="badge badge-warning">未登录</span>
+      {% endif %}
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <span style="color: var(--text-muted); font-size: 0.9rem;">定时提醒调度器：</span>
+      {% if status.scheduler_running %}
+        <span class="badge badge-success">后台运行中</span>
+      {% else %}
+        <span class="badge badge-warning">未运行</span>
+      {% endif %}
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <span style="color: var(--text-muted); font-size: 0.9rem;">绑定学号：</span>
+      <strong>{{ config.get('account.username', '未配置') }}</strong>
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <span style="color: var(--text-muted); font-size: 0.9rem;">当前教务学期：</span>
+      <strong>{{ status.semester_code or '待同步' }}</strong>
+    </div>
+
+    <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem;">
+      <form method="POST" action="{{ url_for('api_relogin') }}" style="flex: 1;">
+        <button type="submit" class="btn btn-secondary" style="width: 100%;">重新登录</button>
+      </form>
+      <a href="{{ url_for('setup') }}" class="btn btn-secondary" style="flex: 1;">修改配置</a>
+    </div>
+  </div>
+
+  <!-- 快速操作与测试卡片 -->
+  <div class="card">
+    <div class="card-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"></path>
+      </svg>
+      快捷调试与测试
+    </div>
+
+    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.75rem;">
+      向所有已启用的通知渠道（Windows 通知、微信、QQ、邮件等）发送测试消息：
+    </p>
+    <button id="btn-sync-now" class="btn btn-primary" style="width: 100%; margin-bottom: 0.75rem; background: #0284c7; border-color: #0284c7;">
+      🔄 立即拉取并同步最新课表与电表
+    </button>
+
+    <button id="btn-test-notify" class="btn btn-secondary" style="width: 100%; margin-bottom: 0.75rem;">
+      测试所有通知渠道
+    </button>
+
+    <a href="{{ url_for('test_captcha') }}" class="btn btn-secondary" style="width: 100%; margin-bottom: 0.75rem;">
+      手动体验滑块验证窗口
+    </a>
+
+    <button id="btn-exit-app" class="btn btn-secondary" style="width: 100%; color: #dc2626; border-color: #fca5a5;">
+      完成配置，安全退出程序
+    </button>
+
+    <div id="notify-results" style="display: none; font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 0.75rem; margin-top: 0.75rem;">
+      <h4 style="margin-bottom: 0.5rem;">测试结果：</h4>
+      <pre id="notify-results-content" style="background: #f1f5f9; padding: 0.75rem; border-radius: 6px; overflow-x: auto;"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- 课表与电表实时同步数据卡片 -->
+<div class="grid-2" style="margin-top: 1.5rem;">
+  <!-- 课表数据卡片 -->
+  <div class="card" style="border-top: 3px solid #3b82f6;">
+    <div class="card-title" style="justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </svg>
+        课表数据获取与同步
+      </div>
+      <span class="badge {% if status.summary and status.summary.total_courses > 0 %}badge-success{% else %}badge-warning{% endif %}">
+        {% if status.summary and status.summary.total_courses > 0 %}已同步 {{ status.summary.total_courses }} 门课程{% else %}待同步{% endif %}
+      </span>
+    </div>
+
+    <div style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+      <span>学期代码：<strong>{{ status.summary.semester_code or status.semester_code or '待同步' }}</strong></span>
+      {% if status.summary and status.summary.term_start_day %}
+      <span style="margin-left: 1rem;">开学日期：<strong>{{ status.summary.term_start_day }}</strong></span>
+      {% endif %}
+    </div>
+
+    <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin-bottom: 0.75rem;">
+      <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
+        <span>📅 今日课程排课</span>
+        {% if status.summary and status.summary.today_classes %}
+          <span style="font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 1px 6px; border-radius: 4px;">{{ status.summary.today_classes|length }} 节课</span>
+        {% endif %}
+      </div>
+      {% if status.summary and status.summary.today_classes %}
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          {% for c in status.summary.today_classes %}
+          <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0.5rem 0.75rem; font-size: 0.85rem;">
+            <div style="font-weight: 600; color: #1e293b;">{{ c.name }}</div>
+            <div style="color: var(--text-muted); display: flex; gap: 0.75rem; margin-top: 0.2rem; flex-wrap: wrap;">
+              <span>⏰ {{ c.start_time }}-{{ c.end_time }} (第{{ c.period_start }}-{{ c.period_end }}节)</span>
+              <span>📍 {{ c.classroom or '未指定教室' }}</span>
+              <span>👤 {{ c.teacher or '任课老师' }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div style="color: #059669; font-size: 0.85rem; padding: 0.25rem 0;">
+          🎉 今日暂无课程安排，可好好自习或休息~
+        </div>
+      {% endif %}
+    </div>
+
+    <div style="font-size: 0.78rem; color: var(--text-muted);">
+      📁 缓存文件：<code>data/cache/classtable.json</code>
+    </div>
+  </div>
+
+  <!-- 电费数据卡片 -->
+  <div class="card" style="border-top: 3px solid #f59e0b;">
+    <div class="card-title" style="justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        宿舍电表监控
+      </div>
+      {% if status.summary and status.summary.energy and status.summary.energy.remain is not none %}
+        <span class="badge {% if status.summary.energy.is_low %}badge-danger{% else %}badge-success{% endif %}">
+          {% if status.summary.energy.is_low %}低于 50 度预警{% else %}电量充足{% endif %}
+        </span>
+      {% else %}
+        <span class="badge badge-warning">未获取</span>
+      {% endif %}
+    </div>
+
+    <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 0.75rem; text-align: center;">
+      {% if status.summary and status.summary.energy and status.summary.energy.remain is not none %}
+        <div style="font-size: 0.85rem; color: var(--text-muted);">当前宿舍剩余电量</div>
+        <div style="font-size: 2.2rem; font-weight: 700; color: {% if status.summary.energy.is_low %}#dc2626{% else %}#059669{% endif %}; margin: 0.25rem 0;">
+          {{ status.summary.energy.remain }} <span style="font-size: 1.1rem; font-weight: 500;">度</span>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">
+          最后抄表时间：{{ status.summary.energy.read_date or '已同步最新' }}
+        </div>
+      {% else %}
+        <div style="font-size: 1.1rem; color: var(--text-muted); padding: 0.75rem 0;">
+          暂未获取到电表数据
+        </div>
+        {% if status.summary and status.summary.energy and status.summary.energy.error %}
+        <div style="color: #dc2626; font-size: 0.8rem; text-align: left; background: #fee2e2; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem;">
+          ⚠️ 同步说明：{{ status.summary.energy.error }}
+        </div>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <div style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.5;">
+      💡 说明：西电电费平台（<code>ignypt.xidian.edu.cn</code>）限制仅限校园网直连访问。<br>
+      📁 缓存文件：<code>data/cache/energy.json</code>
+    </div>
+  </div>
+</div>
+
+<!-- Windows 系统后台服务常驻管理卡片 -->
+<div class="card" style="border-left: 4px solid var(--primary); margin-top: 1.5rem;">
+  <div class="card-title">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+      <line x1="8" y1="21" x2="16" y2="21"></line>
+      <line x1="12" y1="17" x2="12" y2="21"></line>
+    </svg>
+    Windows 系统后台服务守护 (推荐)
+  </div>
+
+  <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+    本 EXE 程序仅用于初次配置。配置完成后，请点击下方按钮注册为 <strong>Windows 系统后台服务</strong>。注册成功后将自动在后台开机常驻静默守护，<strong>本配置程序将自动安全退出并关闭</strong>。
+  </p>
+
+  <div style="margin-bottom: 1.25rem;">
+    <span style="color: var(--text-muted); font-size: 0.9rem;">后台系统服务状态：</span>
+    <span id="service-status-badge" class="badge badge-info">正在检测服务...</span>
+  </div>
+
+  <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+    <button id="btn-install-service" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14"></path>
+        <path d="M12 5l7 7-7 7"></path>
+      </svg>
+      一键安装后台服务并安全退出配置程序
+    </button>
+    <button id="btn-uninstall-service" class="btn btn-secondary">
+      卸载后台服务
+    </button>
+  </div>
+
+  <div id="service-op-result" style="display: none; margin-top: 1rem;" class="alert"></div>
+</div>
+
+<script>
+// 1. 自动轮询登录与人机验证状态（实现无感跳转）
+setInterval(() => {
+  fetch('{{ url_for("api_status") }}')
+    .then(r => r.json())
+    .then(data => {
+      const stepText = document.getElementById('login-step-text');
+      const banner = document.getElementById('login-progress-banner');
+      const spinner = document.getElementById('login-progress-spinner');
+      if (data.login_step && stepText) {
+        stepText.innerText = data.login_step;
+        banner.style.display = 'flex';
+      }
+      if (spinner) {
+        spinner.style.display = (data.login_status === 'logging_in') ? 'inline-block' : 'none';
+      }
+      if (data.login_status === 'need_captcha') {
+        window.location.href = '{{ url_for("captcha") }}';
+      } else if (data.login_status === 'need_mfa') {
+        window.location.href = '{{ url_for("mfa") }}';
+      } else if (data.login_status === 'logged_in' && '{{ status.login_status }}' !== 'logged_in') {
+        window.location.reload();
+      } else if (data.login_status === 'error' && '{{ status.login_status }}' !== 'error') {
+        window.location.reload();
+      }
+    })
+    .catch(() => {});
+}, 1000);
+
+// 1.5 立即拉取并同步最新课表与电表数据
+document.getElementById('btn-sync-now')?.addEventListener('click', function() {
+  const btn = this;
+  btn.disabled = true;
+  btn.innerText = '正在向西电教务与电费系统同步中...';
+  
+  fetch('{{ url_for("api_sync_now") }}', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        alert(data.message || '课表与电表数据已同步成功！');
+        window.location.reload();
+      } else {
+        alert('同步提示: ' + (data.message || '未知错误'));
+      }
+    })
+    .catch(err => {
+      alert('请求网络失败: ' + err);
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerText = '🔄 立即拉取并同步最新课表与电表';
+    });
+});
+
+// 2. 测试所有通知渠道
+document.getElementById('btn-test-notify').addEventListener('click', function() {
+  const btn = this;
+  btn.disabled = true;
+  btn.innerText = '正在发送测试通知...';
+  
+  fetch('{{ url_for("api_test_notify") }}', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      const container = document.getElementById('notify-results');
+      const content = document.getElementById('notify-results-content');
+      container.style.display = 'block';
+      
+      const channelNames = {
+        'console': '控制台日志',
+        'windows_toast': 'Windows 桌面通知',
+        'windows_alert': 'Windows 报错弹窗强提醒',
+        'email': 'QQ / SMTP 邮件通知',
+        'serverchan': 'Server酱 (微信)',
+        'pushplus': 'PushPlus (微信)',
+        'qmsg': 'Qmsg酱 (QQ消息)',
+        'bark': 'Bark (iOS)',
+        'dingtalk': '钉钉群机器人'
+      };
+
+      let html = '<div style="display: flex; flex-direction: column; gap: 0.4rem;">';
+      for (const [ch, ok] of Object.entries(data)) {
+        const name = channelNames[ch] || ch;
+        if (ok) {
+          html += `<div style="color: #065f46; background: #ecfdf5; padding: 0.35rem 0.6rem; border-radius: 4px; font-weight: 500;">✓ ${name}：发送成功 (true)</div>`;
+        } else {
+          html += `<div style="color: #991b1b; background: #fee2e2; padding: 0.35rem 0.6rem; border-radius: 4px; font-weight: 500;">✗ ${name}：发送失败 (false)</div>`;
+        }
+      }
+      html += '</div>';
+      content.innerHTML = html;
+    })
+    .catch(err => {
+      alert('测试失败: ' + err);
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerText = '测试所有通知渠道';
+    });
+});
+
+// 3. 安全退出配置程序
+document.getElementById('btn-exit-app').addEventListener('click', function() {
+  if (!confirm('确定退出当前的配置程序吗？\n如果已安装 Windows 后台服务，提醒服务不受影响，将持续在后台守护。')) return;
+  const btn = this;
+  btn.disabled = true;
+  fetch('{{ url_for("api_exit") }}', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      alert(data.message || '配置程序正在安全关闭。您可以关闭此网页。');
+      window.close();
+    })
+    .catch(() => {
+      alert('配置程序已退出。');
+      window.close();
+    });
+});
+
+// 4. 查询服务状态
+function refreshServiceStatus() {
+  fetch('{{ url_for("api_service_status") }}')
+    .then(r => r.json())
+    .then(data => {
+      const badge = document.getElementById('service-status-badge');
+      if (!data.supported) {
+        badge.className = 'badge badge-warning';
+        badge.innerText = data.state || '非 Windows 平台';
+        return;
+      }
+      if (data.installed && data.running) {
+        badge.className = 'badge badge-success';
+        badge.innerText = '服务运行中 (XDUReminder 开机自启)';
+      } else if (data.installed && !data.running) {
+        badge.className = 'badge badge-warning';
+        badge.innerText = '服务已安装但未运行';
+      } else {
+        badge.className = 'badge badge-danger';
+        badge.innerText = '未注册为系统服务';
+      }
+    })
+    .catch(() => {
+      document.getElementById('service-status-badge').innerText = '检测失败';
+    });
+}
+refreshServiceStatus();
+
+// 5. 一键安装服务并自动退出配置程序
+document.getElementById('btn-install-service').addEventListener('click', function() {
+  if (!confirm('确定将提醒服务注册为 Windows 系统服务 (XDUReminder) 吗？\n安装成功后本配置程序将自动安全退出，服务将在后台开机静默守护。')) return;
+  const btn = this;
+  btn.disabled = true;
+  btn.innerText = '正在注册并启动服务...';
+  
+  fetch('{{ url_for("api_install_service") }}', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      const resBox = document.getElementById('service-op-result');
+      resBox.style.display = 'block';
+      if (data.status === 'ok') {
+        resBox.className = 'alert alert-success';
+        resBox.innerHTML = '<strong>' + data.message + '</strong><br>配置程序将在 3 秒后自动安全退出，您可以放心关闭此网页。';
+        // 触发安全退出
+        setTimeout(() => {
+          fetch('{{ url_for("api_exit") }}', { method: 'POST' });
+        }, 3000);
+      } else {
+        resBox.className = 'alert alert-danger';
+        resBox.innerHTML = '<strong>' + data.message + '</strong>';
+      }
+      refreshServiceStatus();
+    })
+    .catch(err => {
+      alert('请求失败: ' + err);
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerText = '一键安装后台服务并安全退出配置程序';
+    });
+});
+
+// 6. 卸载服务
+document.getElementById('btn-uninstall-service').addEventListener('click', function() {
+  if (!confirm('确定要停止并卸载 Windows 后台服务吗？')) return;
+  const btn = this;
+  btn.disabled = true;
+  btn.innerText = '正在卸载服务...';
+  
+  fetch('{{ url_for("api_uninstall_service") }}', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      const resBox = document.getElementById('service-op-result');
+      resBox.style.display = 'block';
+      if (data.status === 'ok') {
+        resBox.className = 'alert alert-success';
+        resBox.innerText = data.message;
+      } else {
+        resBox.className = 'alert alert-danger';
+        resBox.innerText = data.message;
+      }
+      refreshServiceStatus();
+    })
+    .catch(err => {
+      alert('卸载失败: ' + err);
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerText = '卸载后台服务';
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}XDU Reminder Service{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <nav class="navbar">
+    <a href="{{ url_for('index') }}" class="navbar-brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+      XDU 校园提醒服务
+    </a>
+    <div class="nav-links" style="display: flex; align-items: center; gap: 1rem;">
+      <a href="{{ url_for('status') }}" class="{% if request.endpoint == 'status' %}active{% endif %}">运行状态</a>
+      <a href="{{ url_for('setup') }}" class="{% if request.endpoint == 'setup' %}active{% endif %}">配置设置</a>
+      <button id="nav-btn-exit" style="background: #fff; border: 1px solid #ef4444; color: #ef4444; padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem; font-weight: 500;" title="关闭当前配置程序进程">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+          <line x1="12" y1="2" x2="12" y2="12"></line>
+        </svg>
+        退出配置程序
+      </button>
+    </div>
+  </nav>
+
+  <div class="container">
+    {% block content %}{% endblock %}
+  </div>
+
+  <script>
+  document.getElementById('nav-btn-exit')?.addEventListener('click', function() {
+    if (confirm('确定要安全退出配置程序吗？\n若已注册 Windows 后台服务，系统后台将继续自动静默守护。')) {
+      const btn = this;
+      btn.disabled = true;
+      btn.innerText = '正在退出...';
+      fetch('{{ url_for("api_exit") }}', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          alert(data.message || '程序已安全退出。');
+          window.close();
+        })
+        .catch(() => {
+          alert('程序已安全退出。您可以直接关闭此标签页。');
+          window.close();
+        });
+    }
+  });
+  </script>
+</body>
+</html>

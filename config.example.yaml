@@ -1,0 +1,71 @@
+# XDU Reminder Service 配置文件
+# 复制为 config.yaml 后编辑，或通过 Web 界面 (http://localhost:5800) 配置
+
+server:
+  host: "0.0.0.0"
+  port: 5800
+  # secret_key: ""  # 留空则自动生成
+
+account:
+  username: ""        # 学号
+  password: ""        # IDS 统一认证密码
+
+reminder:
+  class_minutes_before: 30        # 课前提醒提前分钟数
+  exam_minutes_before: 30         # 考前提醒提前分钟数
+  exam_day_before_notify: true    # 考试前一天晚上 20:00 是否提醒
+  energy_threshold: 50            # 电费余额低于此值(度)时提醒
+  energy_check_interval_hours: 4  # 电费查询间隔(小时)
+  energy_max_alerts_per_day: 2    # 低电量每天最多提醒次数
+
+notifiers:
+  # 控制台日志通知 (始终建议开启)
+  console:
+    enabled: true
+
+  # Windows 桌面通知 (仅 Windows 有效，NAS 上自动忽略)
+  windows_toast:
+    enabled: true
+
+  # Windows 强提醒报错弹窗 (红叉模态置顶弹窗 + 错误音效，防漏课)
+  windows_alert:
+    enabled: false
+    timeout: 120
+
+  # 邮件通知
+  email:
+    enabled: false
+    smtp_host: "smtp.qq.com"
+    smtp_port: 465
+    smtp_ssl: true
+    username: ""        # 发件邮箱
+    password: ""        # 授权码 (非登录密码)
+    to_addr: ""         # 收件邮箱
+
+  # Server酱 - 微信推送 (https://sct.ftqq.com/)
+  serverchan:
+    enabled: false
+    key: ""             # SendKey
+
+  # PushPlus - 微信推送 (https://www.pushplus.plus/)
+  pushplus:
+    enabled: false
+    token: ""           # Token
+
+  # Qmsg酱 - QQ消息推送 (https://qmsg.zendee.cn/)
+  qmsg:
+    enabled: false
+    key: ""             # Qmsg Key
+    qq: ""              # 接收消息的 QQ 号
+
+  # Bark - iOS 推送 (https://github.com/Finb/Bark)
+  bark:
+    enabled: false
+    key: ""
+    server: "https://api.day.app"
+
+  # 钉钉群机器人
+  dingtalk:
+    enabled: false
+    webhook: ""         # Webhook URL
+    secret: ""          # 加签密钥 (可选)

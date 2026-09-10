@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}配置设置 - XDU Reminder Service{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+      <circle cx="12" cy="12" r="3"></circle>
+    </svg>
+    系统与服务配置
+  </div>
+
+  <form method="POST" action="{{ url_for('setup') }}">
+    <!-- 统一认证账号 -->
+    <h3 style="margin: 1.5rem 0 1rem; font-size: 1.05rem; color: var(--primary);">一站式统一身份认证 (IDS)</h3>
+    <div class="grid-2">
+      <div class="form-group">
+        <label for="username">学号 / 账号</label>
+        <input type="text" id="username" name="username" class="form-control" required value="{{ config.get('account.username', '') }}" placeholder="例如：21009200000">
+      </div>
+      <div class="form-group">
+        <label for="password">统一认证密码</label>
+        <input type="password" id="password" name="password" class="form-control" required value="{{ config.get('account.password', '') }}" placeholder="IDS 统一认证密码">
+    </div>
+
+    <!-- 滑块人机验证模式 -->
+    <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+      <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--text);">人机验证方式选择：</div>
+      <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+        <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0;">
+          <input type="radio" name="captcha_mode" value="auto" checked>
+          <span><strong>智能算法自动识图破解（推荐）</strong> — 后台自动计算拼图位移，无需手动滑动</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0;">
+          <input type="radio" name="captcha_mode" value="manual">
+          <span><strong>手动拖动滑块验证</strong> — 网页弹窗展示拼图供您亲手拖动验证</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 提醒参数设置 -->
+    <h3 style="margin: 1.5rem 0 1rem; font-size: 1.05rem; color: var(--primary);">提醒触发设置</h3>
+    <div class="grid-2">
+      <div class="form-group">
+        <label for="class_minutes_before">课程提前提醒 (分钟)</label>
+        <input type="number" id="class_minutes_before" name="class_minutes_before" class="form-control" value="{{ config.get('reminder.class_minutes_before', 30) }}" min="5" max="120">
+      </div>
+      <div class="form-group">
+        <label for="exam_minutes_before">考试提前提醒 (分钟)</label>
+        <input type="number" id="exam_minutes_before" name="exam_minutes_before" class="form-control" value="{{ config.get('reminder.exam_minutes_before', 30) }}" min="5" max="180">
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group">
+        <label for="energy_threshold">电费不足报警阈值 (度)</label>
+        <input type="number" id="energy_threshold" name="energy_threshold" class="form-control" value="{{ config.get('reminder.energy_threshold', 50) }}" min="5" max="500">
+      </div>
+      <div class="form-group">
+        <label for="energy_check_interval_hours">电费检查频率 (小时)</label>
+        <input type="number" id="energy_check_interval_hours" name="energy_check_interval_hours" class="form-control" value="{{ config.get('reminder.energy_check_interval_hours', 4) }}" min="1" max="48">
+      </div>
+    </div>
+
+    <div class="form-group checkbox-group">
+      <input type="checkbox" id="exam_day_before_notify" name="exam_day_before_notify" {% if config.get('reminder.exam_day_before_notify', true) %}checked{% endif %}>
+      <label for="exam_day_before_notify" style="margin-bottom: 0;">考试前一天晚上 20:00 提前提醒</label>
+    </div>
+
+    <!-- 通知渠道配置 -->
+    <h3 style="margin: 2rem 0 1rem; font-size: 1.05rem; color: var(--primary);">通知渠道配置 (多选)</h3>
+    
+    <!-- 控制台 -->
+    <div class="form-group checkbox-group">
+      <input type="checkbox" id="console_enabled" name="console_enabled" {% if config.get('notifiers.console.enabled', true) %}checked{% endif %}>
+      <label for="console_enabled" style="margin-bottom: 0; font-weight: 600;">控制台输出日志</label>
+    </div>
+
+    <!-- Windows Toast -->
+    <div class="form-group checkbox-group">
+      <input type="checkbox" id="windows_toast_enabled" name="windows_toast_enabled" {% if config.get('notifiers.windows_toast.enabled', true) %}checked{% endif %}>
+      <label for="windows_toast_enabled" style="margin-bottom: 0; font-weight: 600;">Windows 桌面通知 (Toast)</label>
+    </div>
+
+    <!-- Windows 报错强提醒弹窗 -->
+    <div class="form-group checkbox-group" style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.6rem 0.75rem;">
+      <input type="checkbox" id="windows_alert_enabled" name="windows_alert_enabled" {% if config.get('notifiers.windows_alert.enabled', false) %}checked{% endif %}>
+      <label for="windows_alert_enabled" style="margin-bottom: 0; font-weight: 600; color: #b91c1c;">
+        ⚠️ Windows 报错弹窗强提醒 (红叉置顶模态窗口 + 警报音，打游戏/沉浸时防漏课)
+      </label>
+    </div>
+
+    <!-- 邮件通知 -->
+    <div class="card" style="padding: 1.25rem; margin-top: 1rem; background: #fafafa;">
+      <div class="checkbox-group">
+        <input type="checkbox" id="email_enabled" name="email_enabled" {% if config.get('notifiers.email.enabled', false) %}checked{% endif %}>
+        <label for="email_enabled" style="margin-bottom: 0; font-weight: 600;">邮件通知 (SMTP)</label>
+      </div>
+      <div class="grid-2" style="margin-top: 0.75rem;">
+        <div class="form-group">
+          <label>SMTP 服务器</label>
+          <input type="text" name="email_smtp_host" class="form-control" value="{{ config.get('notifiers.email.smtp_host', 'smtp.qq.com') }}">
+        </div>
+        <div class="form-group">
+          <label>SMTP 端口</label>
+          <input type="number" name="email_smtp_port" class="form-control" value="{{ config.get('notifiers.email.smtp_port', 465) }}">
+        </div>
+        <div class="form-group">
+          <label>发件邮箱账号</label>
+          <input type="email" name="email_username" class="form-control" value="{{ config.get('notifiers.email.username', '') }}" placeholder="例如：your_qq@qq.com">
+        </div>
+        <div class="form-group">
+          <label>SMTP 授权码/密码</label>
+          <input type="password" name="email_password" class="form-control" value="{{ config.get('notifiers.email.password', '') }}" placeholder="QQ邮箱授权码">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>收件邮箱地址</label>
+        <input type="email" name="email_to_addr" class="form-control" value="{{ config.get('notifiers.email.to_addr', '') }}" placeholder="接收提醒的邮箱">
+      </div>
+      <div class="checkbox-group">
+        <input type="checkbox" id="email_smtp_ssl" name="email_smtp_ssl" {% if config.get('notifiers.email.smtp_ssl', true) %}checked{% endif %}>
+        <label for="email_smtp_ssl" style="margin-bottom: 0;">使用 SSL 加密连接 (通常端口 465)</label>
+      </div>
+      <div style="margin-top: 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <button type="button" id="btn-test-email-direct" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.45rem 0.85rem;">
+          📧 发送测试邮件（验证当前邮箱与授权码）
+        </button>
+        <span id="test-email-status" style="font-size: 0.85rem;"></span>
+      </div>
+    </div>
+
+    <!-- Server酱 -->
+    <div class="card" style="padding: 1.25rem; background: #fafafa;">
+      <div class="checkbox-group">
+        <input type="checkbox" id="serverchan_enabled" name="serverchan_enabled" {% if config.get('notifiers.serverchan.enabled', false) %}checked{% endif %}>
+        <label for="serverchan_enabled" style="margin-bottom: 0; font-weight: 600;">Server酱 (微信推送)</label>
+      </div>
+      <div class="form-group" style="margin-top: 0.75rem;">
+        <label>SendKey</label>
+        <input type="text" name="serverchan_key" class="form-control" value="{{ config.get('notifiers.serverchan.key', '') }}" placeholder="SCTxxxxxxxx">
+      </div>
+    </div>
+
+    <!-- PushPlus -->
+    <div class="card" style="padding: 1.25rem; background: #fafafa;">
+      <div class="checkbox-group">
+        <input type="checkbox" id="pushplus_enabled" name="pushplus_enabled" {% if config.get('notifiers.pushplus.enabled', false) %}checked{% endif %}>
+        <label for="pushplus_enabled" style="margin-bottom: 0; font-weight: 600;">PushPlus (微信推送)</label>
+      </div>
+      <div class="form-group" style="margin-top: 0.75rem;">
+        <label>Token</label>
+        <input type="text" name="pushplus_token" class="form-control" value="{{ config.get('notifiers.pushplus.token', '') }}" placeholder="PushPlus 个人 Token">
+      </div>
+    </div>
+
+    <!-- Qmsg酱 -->
+    <div class="card" style="padding: 1.25rem; background: #fafafa;">
+      <div class="checkbox-group">
+        <input type="checkbox" id="qmsg_enabled" name="qmsg_enabled" {% if config.get('notifiers.qmsg.enabled', false) %}checked{% endif %}>
+        <label for="qmsg_enabled" style="margin-bottom: 0; font-weight: 600;">Qmsg酱 (QQ 消息推送)</label>
+      </div>
+      <div class="grid-2" style="margin-top: 0.75rem;">
+        <div class="form-group">
+          <label>Qmsg Key</label>
+          <input type="text" name="qmsg_key" class="form-control" value="{{ config.get('notifiers.qmsg.key', '') }}" placeholder="Qmsg Key">
+        </div>
+        <div class="form-group">
+          <label>目标 QQ 号</label>
+          <input type="text" name="qmsg_qq" class="form-control" value="{{ config.get('notifiers.qmsg.qq', '') }}" placeholder="接收通知的 QQ 号">
+        </div>
+      </div>
+    </div>
+
+    <!-- Bark -->
+    <div class="card" style="padding: 1.25rem; background: #fafafa;">
+      <div class="checkbox-group">
+        <input type="checkbox" id="bark_enabled" name="bark_enabled" {% if config.get('notifiers.bark.enabled', false) %}checked{% endif %}>
+        <label for="bark_enabled" style="margin-bottom: 0; font-weight: 600;">Bark (iOS 推送)</label>
+      </div>
+      <div class="grid-2" style="margin-top: 0.75rem;">
+        <div class="form-group">
+          <label>Device Key</label>
+          <input type="text" name="bark_key" class="form-control" value="{{ config.get('notifiers.bark.key', '') }}" placeholder="Bark Key">
+        </div>
+        <div class="form-group">
+          <label>Bark 服务器地址</label>
+          <input type="text" name="bark_server" class="form-control" value="{{ config.get('notifiers.bark.server', 'https://api.day.app') }}">
+        </div>
+      </div>
+    </div>
+
+    <!-- 钉钉 -->
+    <div class="card" style="padding: 1.25rem; background: #fafafa;">
+      <div class="checkbox-group">
+        <input type="checkbox" id="dingtalk_enabled" name="dingtalk_enabled" {% if config.get('notifiers.dingtalk.enabled', false) %}checked{% endif %}>
+        <label for="dingtalk_enabled" style="margin-bottom: 0; font-weight: 600;">钉钉自定义机器人</label>
+      </div>
+      <div class="grid-2" style="margin-top: 0.75rem;">
+        <div class="form-group">
+          <label>Webhook URL</label>
+          <input type="text" name="dingtalk_webhook" class="form-control" value="{{ config.get('notifiers.dingtalk.webhook', '') }}" placeholder="https://oapi.dingtalk.com/robot/send?access_token=...">
+        </div>
+        <div class="form-group">
+          <label>加签 Secret (可选)</label>
+          <input type="text" name="dingtalk_secret" class="form-control" value="{{ config.get('notifiers.dingtalk.secret', '') }}" placeholder="SECxxxxxxxx">
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+      <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.85rem;">
+        保存并启动登录服务
+      </button>
+      <a href="{{ url_for('status') }}" class="btn btn-secondary">取消</a>
+    </div>
+  </form>
+</div>
+
+<script>
+document.getElementById('btn-test-email-direct')?.addEventListener('click', function() {
+  const btn = this;
+  const statusSpan = document.getElementById('test-email-status');
+  btn.disabled = true;
+  btn.innerText = '正在连接 SMTP 发送测试邮件...';
+  statusSpan.innerText = '';
+
+  const payload = {
+    smtp_host: document.querySelector('input[name="email_smtp_host"]').value,
+    smtp_port: document.querySelector('input[name="email_smtp_port"]').value,
+    smtp_ssl: document.querySelector('input[name="email_smtp_ssl"]').checked,
+    username: document.querySelector('input[name="email_username"]').value,
+    password: document.querySelector('input[name="email_password"]').value,
+    to_addr: document.querySelector('input[name="email_to_addr"]').value
+  };
+
+  fetch('{{ url_for("api_test_email") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        statusSpan.innerHTML = '<span style="color: #059669; font-weight: 600;">✓ ' + data.message + '</span>';
+      } else {
+        statusSpan.innerHTML = '<span style="color: #dc2626; font-weight: 600;">✗ ' + data.message + '</span>';
+      }
+    })
+    .catch(err => {
+      statusSpan.innerHTML = '<span style="color: #dc2626;">请求失败: ' + err + '</span>';
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerText = '📧 发送测试邮件（验证当前邮箱与授权码）';
+    });
+});
+</script>
+{% endblock %}

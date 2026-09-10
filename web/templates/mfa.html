@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}二次身份认证 (MFA) - XDU Reminder Service{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 520px; margin: 2rem auto;">
+  <div class="card-title" style="justify-content: center;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+    </svg>
+    二次身份验证 (MFA)
+  </div>
+
+  {% if error %}
+  <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+  <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.75rem; text-align: center;">
+    西电统一认证已开启二次验证，请选择接收渠道并点击发送：
+  </div>
+
+  <!-- 认证渠道切换（点击仅切换渠道，不会自动发送） -->
+  <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; background: #f1f5f9; padding: 4px; border-radius: 8px;">
+    <button type="button" id="btn-tab-sms" class="btn" style="flex: 1; padding: 0.6rem; font-size: 0.9rem; border-radius: 6px; {% if current_type != 'wechat' %}background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: 600; color: var(--primary);{% else %}background: transparent; border: none; color: var(--text-muted);{% endif %}">
+      📱 手机短信
+    </button>
+    <button type="button" id="btn-tab-wechat" class="btn" style="flex: 1; padding: 0.6rem; font-size: 0.9rem; border-radius: 6px; {% if current_type == 'wechat' %}background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: 600; color: var(--primary);{% else %}background: transparent; border: none; color: var(--text-muted);{% endif %}">
+      💬 企业微信
+    </button>
+  </div>
+
+  <!-- 获取验证码大按钮 -->
+  <div style="margin-bottom: 1.25rem;">
+    <button type="button" id="btn-send-code" class="btn btn-warning" style="width: 100%; padding: 0.75rem; font-size: 0.95rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+      <span id="btn-send-icon">📱</span>
+      <span id="btn-send-text">获取【手机短信】验证码</span>
+    </button>
+  </div>
+
+  <div id="mfa-msg-box" class="alert alert-info" style="font-size: 0.88rem; line-height: 1.5; margin-bottom: 1.25rem;">
+    <strong>状态提示：</strong>
+    <span id="mfa-msg-text">{{ mfa_info.get('message', '请选择接收方式（手机短信或企业微信），点击上方按钮获取验证码。') }}</span>
+  </div>
+
+  <form id="mfa-form" method="POST" action="{{ url_for('mfa') }}">
+    <input type="hidden" id="mfa-type" name="type" value="{{ current_type or 'sms' }}">
+
+    <div class="form-group">
+      <label for="code" id="mfa-input-label" style="font-size: 0.95rem; margin-bottom: 0.5rem; font-weight: 600;">
+        {% if current_type == 'wechat' %}输入企业微信 6 位验证码{% else %}输入手机短信 6 位验证码{% endif %}
+      </label>
+      <input type="text" id="code" name="code" class="form-control" style="font-size: 1.4rem; letter-spacing: 6px; text-align: center; font-weight: 700; height: 48px;" placeholder="······" maxlength="8" required autocomplete="one-time-code">
+    </div>
+
+    <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+      <button type="submit" id="btn-submit-mfa" class="btn btn-primary" style="flex: 1; padding: 0.75rem; font-size: 1rem;">
+        确认并完成登录
+      </button>
+      <a href="{{ url_for('do_login') }}" class="btn btn-secondary" style="padding: 0.75rem 1.25rem;">重试</a>
+    </div>
+  </form>
+</div>
+
+<script>
+let currentType = '{{ current_type or "sms" }}';
+let countdown = 0;
+let timer = null;
+
+function setType(type) {
+  currentType = type;
+  document.getElementById('mfa-type').value = type;
+  
+  const tabSms = document.getElementById('btn-tab-sms');
+  const tabWechat = document.getElementById('btn-tab-wechat');
+  const inputLabel = document.getElementById('mfa-input-label');
+  const sendIcon = document.getElementById('btn-send-icon');
+  const sendText = document.getElementById('btn-send-text');
+
+  if (type === 'wechat') {
+    tabWechat.style.background = '#fff';
+    tabWechat.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+    tabWechat.style.fontWeight = '600';
+    tabWechat.style.color = 'var(--primary)';
+    tabSms.style.background = 'transparent';
+    tabSms.style.boxShadow = 'none';
+    tabSms.style.fontWeight = 'normal';
+    tabSms.style.color = 'var(--text-muted)';
+    inputLabel.innerText = '输入企业微信 6 位验证码';
+    sendIcon.innerText = '💬';
+    if (countdown <= 0) {
+      sendText.innerText = '获取【企业微信】验证码';
+    }
+  } else {
+    tabSms.style.background = '#fff';
+    tabSms.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+    tabSms.style.fontWeight = '600';
+    tabSms.style.color = 'var(--primary)';
+    tabWechat.style.background = 'transparent';
+    tabWechat.style.boxShadow = 'none';
+    tabWechat.style.fontWeight = 'normal';
+    tabWechat.style.color = 'var(--text-muted)';
+    inputLabel.innerText = '输入手机短信 6 位验证码';
+    sendIcon.innerText = '📱';
+    if (countdown <= 0) {
+      sendText.innerText = '获取【手机短信】验证码';
+    }
+  }
+}
+
+function doSendCode() {
+  if (countdown > 0) return;
+  const btn = document.getElementById('btn-send-code');
+  const sendText = document.getElementById('btn-send-text');
+  const msgText = document.getElementById('mfa-msg-text');
+  const msgBox = document.getElementById('mfa-msg-box');
+  
+  btn.disabled = true;
+  sendText.innerText = '正在发送验证码...';
+
+  fetch('{{ url_for("api_mfa_send_code") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: currentType })
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        msgBox.className = 'alert alert-success';
+        msgText.innerText = data.message;
+        startCountdown(60);
+        document.getElementById('code').focus();
+      } else {
+        msgBox.className = 'alert alert-danger';
+        msgText.innerText = data.message || '发送验证码失败';
+        btn.disabled = false;
+        resetSendBtn();
+      }
+    })
+    .catch(err => {
+      msgBox.className = 'alert alert-danger';
+      msgText.innerText = '请求失败: ' + err;
+      btn.disabled = false;
+      resetSendBtn();
+    });
+}
+
+function resetSendBtn() {
+  const sendText = document.getElementById('btn-send-text');
+  if (currentType === 'wechat') {
+    sendText.innerText = '重新获取【企业微信】验证码';
+  } else {
+    sendText.innerText = '重新获取【手机短信】验证码';
+  }
+}
+
+function startCountdown(sec) {
+  countdown = sec;
+  const btn = document.getElementById('btn-send-code');
+  const sendText = document.getElementById('btn-send-text');
+  clearInterval(timer);
+  btn.disabled = true;
+  sendText.innerText = `已发送 (${countdown}s 后可重新获取)`;
+
+  timer = setInterval(() => {
+    countdown--;
+    if (countdown <= 0) {
+      clearInterval(timer);
+      btn.disabled = false;
+      resetSendBtn();
+    } else {
+      sendText.innerText = `已发送 (${countdown}s 后可重新获取)`;
+    }
+  }, 1000);
+}
+
+document.getElementById('btn-tab-sms').addEventListener('click', () => setType('sms'));
+document.getElementById('btn-tab-wechat').addEventListener('click', () => setType('wechat'));
+document.getElementById('btn-send-code').addEventListener('click', doSendCode);
+
+// 表单提交时禁用按钮并显示提示，防止重复点击
+const mfaForm = document.getElementById('mfa-form');
+if (mfaForm) {
+  mfaForm.addEventListener('submit', function() {
+    const btn = document.getElementById('btn-submit-mfa');
+    if (btn) {
+      setTimeout(() => {
+        btn.disabled = true;
+        btn.innerText = '正在提交验证码并进入系统...';
+      }, 10);
+    }
+  });
+}
+
+// 初始化按钮文案
+if (currentType === 'wechat') {
+  setType('wechat');
+} else {
+  setType('sms');
+}
+</script>
+{% endblock %}

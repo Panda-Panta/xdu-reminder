@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  xdu-reminder:
+    build: .
+    container_name: xdu-reminder
+    restart: unless-stopped
+    # 如果部署在群晖 NAS 上且需要直接使用校园网（或者连接了校内 VPN/原生校园网网线），
+    # 建议取消注释 network_mode: host 并注释 ports 部分：
+    # network_mode: host
+    ports:
+      - "5800:5800"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1

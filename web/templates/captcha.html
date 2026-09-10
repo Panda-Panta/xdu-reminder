@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}滑块人机验证 - XDU Reminder Service{% endblock %}
+
+{% block head %}
+<script src="{{ url_for('static', filename='captcha.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 480px; margin: 2rem auto; text-align: center;">
+  <div class="card-title" style="justify-content: center;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+    </svg>
+    完成安全验证
+  </div>
+
+  <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+    西电统一认证请求滑块验证。请拖动下方滑块完成拼图拼合：
+  </p>
+
+  <div class="captcha-container">
+    <div class="captcha-stage">
+      <img class="captcha-bg" src="data:image/png;base64,{{ captcha_data.get('big_image') }}" alt="Captcha Background">
+      <img class="captcha-piece" src="data:image/png;base64,{{ captcha_data.get('small_image') }}" alt="Captcha Piece">
+    </div>
+
+    <div class="slider-track">
+      <div class="slider-thumb">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </div>
+      <div class="slider-text">按住滑块，拖动完成拼图</div>
+    </div>
+  </div>
+
+  <div style="margin-top: 1.5rem;">
+    <a href="{{ url_for('do_login') }}" class="btn btn-secondary" style="font-size: 0.85rem;">重新获取验证码</a>
+  </div>
+</div>
+{% endblock %}
