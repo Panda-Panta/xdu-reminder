@@ -56,9 +56,15 @@ class ExamReminder:
                 )
                 
     def _send_exam_reminder(self, subj, msg):
+        # 如果是考前提醒，动态采用当前的 self.minutes_before
+        if "分钟后" in str(msg) or msg == "before":
+            display_msg = f"{self.minutes_before}分钟后考试！"
+        else:
+            display_msg = msg
+
         self.notify_manager.send(
             title=f'📝 考试提醒: {subj.subject}',
-            content=f'{msg}\n'
+            content=f'{display_msg}\n'
                     f'时间: {subj.time_str}\n'
                     f'地点: {subj.place}\n'
                     f'座位: {subj.seat}'
