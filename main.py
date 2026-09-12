@@ -151,6 +151,9 @@ def main():
     )
     run_web_server(app, host=host, port=port)
 
+    # 启动外部配置文件修改监听器 (实现文件被外部修改时的自动热重载)
+    config.start_file_watcher(interval=2.0)
+
     # 只要不是服务守护模式且未禁用浏览器，双击或启动后均自动在默认浏览器中打开配置/管理页面
     if not args.service and not args.no_browser:
         import threading
@@ -209,6 +212,7 @@ def main():
     # 8. 优雅退出信号监听
     def handle_exit(signum, frame):
         logger.info("接收到终止信号 ({})，正在安全停止后台任务...", signum)
+        config.stop_file_watcher()
         if scheduler_ref.get("scheduler"):
             try:
                 scheduler_ref["scheduler"].stop()

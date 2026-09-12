@@ -19,7 +19,8 @@ class TestConfig(unittest.TestCase):
         self.assertFalse(config.is_configured)
         self.assertEqual(config.get("server.port"), 5800)
         self.assertEqual(config.get("reminder.class_minutes_before"), 30)
-        self.assertEqual(config.get("reminder.energy_threshold"), 50)
+        self.assertEqual(config.get("reminder.energy_threshold"), 100)
+        self.assertEqual(config.get("reminder.energy_check_interval_hours"), 24.1)
         self.assertTrue(config.get("notifiers.console.enabled"))
 
     def test_custom_config_loading_and_saving(self):
@@ -37,7 +38,8 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.get("account.username"), "21009200000")
         self.assertEqual(config.get("reminder.class_minutes_before"), 20)
         # 默认值依然被合并保留
-        self.assertEqual(config.get("reminder.energy_threshold"), 50)
+        self.assertEqual(config.get("reminder.energy_threshold"), 100)
+        self.assertEqual(config.get("reminder.energy_check_interval_hours"), 24.1)
         self.assertTrue(config.get("notifiers.email.enabled"))
         self.assertEqual(config.get("notifiers.email.to_addr"), "student@xdu.edu.cn")
 

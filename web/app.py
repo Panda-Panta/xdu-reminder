@@ -151,7 +151,21 @@ def create_app(config, ids_session, network_client, notify_manager, scheduler_re
                 notify_manager.add(DingTalkNotifier(webhook=c["webhook"], secret=c.get("secret", "")))
         logger.info(f"已动态同步并加载 {len(notify_manager._notifiers)} 个通知渠道")
 
-    reload_notifiers()
+    def reload_all(source_config=None):
+        """动态热重载通知渠道与提醒调度器"""
+        cfg = source_config or config
+        reload_notifiers()
+        sched = scheduler_ref.get("scheduler")
+        if sched and hasattr(sched, "reload_config"):
+            try:
+                sched.reload_config(cfg)
+            except Exception as e:
+                logger.error("调度器热重载失败: {}", e)
+        logger.info("所有服务组件已成功完成热重载")
+
+    reload_all()
+    if hasattr(config, "add_change_listener"):
+        config.add_change_listener(reload_all)
 
     # ─── 路由 ───
 
@@ -174,8 +188,8 @@ def create_app(config, ids_session, network_client, notify_manager, scheduler_re
             form = request.form
             updates = {
                 "account": {
-                    "username": form.get("username", ""),
-                    "password": form.get("password", ""),
+                    "username": form.get("username", "").strip(),
+                    "password": form.get("password", "").strip(),
                 },
                 "notifiers": {},
             }
@@ -219,14 +233,25 @@ def create_app(config, ids_session, network_client, notify_manager, scheduler_re
                 "class_minutes_before": int(form.get("class_minutes_before", "30")),
                 "exam_minutes_before": int(form.get("exam_minutes_before", "30")),
                 "exam_day_before_notify": form.get("exam_day_before_notify") == "on",
-                "energy_threshold": int(form.get("energy_threshold", "50")),
-                "energy_check_interval_hours": int(form.get("energy_check_interval_hours", "4")),
+                "energy_threshold": float(form.get("energy_threshold", "100")),
+                "energy_check_interval_hours": float(form.get("energy_check_interval_hours", "24.1")),
                 "energy_max_alerts_per_day": int(form.get("energy_max_alerts_per_day", "2")),
             }
 
+            old_username = str(config.get("account.username", "")).strip()
+            old_password = str(config.get("account.password", "")).strip()
+            new_username = str(updates["account"]["username"]).strip()
+            new_password = str(updates["account"]["password"]).strip()
+            account_changed = (new_username != old_username) or (new_password != old_password)
+            was_configured = config.is_configured
+            is_logged_in = app_state.get("login_status") == "logged_in"
+
             config.update(updates)
-            reload_notifiers()
-            logger.info("配置已通过 Web 界面更新并重新加载通知渠道")
+            logger.info("配置已通过 Web 界面更新并完成即时热重载")
+
+            # 若账号密码未变动且当前已成功登录，直接返回状态页（热重载即时生效，不破坏会话）
+            if was_configured and is_logged_in and not account_changed:
+                return redirect(url_for("status", reloaded="1"))
 
             # 是否手动滑块验证
             force_manual = form.get("captcha_mode") == "manual"
@@ -274,8 +299,14 @@ def create_app(config, ids_session, network_client, notify_manager, scheduler_re
         return redirect(url_for("status"))
 
     def _start_scheduler():
-        """初始化并启动提醒调度器"""
+        """初始化并启动提醒调度器（若已存在旧实例则先停止）"""
         try:
+            old_sched = scheduler_ref.get("scheduler")
+            if old_sched and hasattr(old_sched, "stop"):
+                try:
+                    old_sched.stop()
+                except Exception as e:
+                    logger.warning("停止旧调度器异常: {}", e)
             from reminder.scheduler import ReminderScheduler
             sched = ReminderScheduler(
                 ids_session=ids_session,
@@ -418,7 +449,7 @@ def create_app(config, ids_session, network_client, notify_manager, scheduler_re
                     energy_data = {
                         "remain": float(ed.get("electricity_remain", 0.0)),
                         "read_date": str(ed.get("last_read_date", "")),
-                        "is_low": float(ed.get("electricity_remain", 0.0)) < config.get("reminder.energy_threshold", 50),
+                        "is_low": float(ed.get("electricity_remain", 0.0)) < float(config.get("reminder.energy_threshold", 100)),
                         "cached": True
                     }
             except Exception:

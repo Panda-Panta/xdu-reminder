@@ -12,6 +12,15 @@
 {% endblock %}
 
 {% block content %}
+{% if request.args.get('reloaded') == '1' %}
+<div class="alert alert-success" style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534;">
+  <span style="font-size: 1.25rem; font-weight: bold; color: #16a34a;">✓</span>
+  <div>
+    <strong>配置已成功保存并即时生效（热重载完成）！</strong><br>
+    <span style="font-size: 0.88rem; color: #15803d;">所有通知渠道与提醒触发规则已实时热更新，后台服务无需重启即可持续静默守护。</span>
+  </div>
+</div>
+{% endif %}
 <div id="login-progress-banner" class="alert alert-warning" style="display: {% if status.login_status == 'logging_in' or status.login_step %}flex{% else %}none{% endif %}; align-items: center; gap: 1rem;">
   <span id="login-progress-spinner" style="border: 3px solid rgba(0,0,0,0.1); border-top-color: var(--primary); border-radius: 50%; width: 22px; height: 22px; animation: spin 1s linear infinite; display: {% if status.login_status == 'logging_in' %}inline-block{% else %}none{% endif %}; flex-shrink: 0;"></span>
   <div>
@@ -186,7 +195,7 @@
       </div>
       {% if status.summary and status.summary.energy and status.summary.energy.remain is not none %}
         <span class="badge {% if status.summary.energy.is_low %}badge-danger{% else %}badge-success{% endif %}">
-          {% if status.summary.energy.is_low %}低于 50 度预警{% else %}电量充足{% endif %}
+          {% if status.summary.energy.is_low %}低于 {{ config.get('reminder.energy_threshold', 100) }} 度预警{% else %}电量充足{% endif %}
         </span>
       {% else %}
         <span class="badge badge-warning">未获取</span>

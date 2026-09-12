@@ -53,11 +53,41 @@ class ReminderScheduler:
         self.scheduler.add_job(self._refresh_exam, IntervalTrigger(hours=6), id='refresh_exam')
         self.scheduler.add_job(self._check_exam_upcoming, CronTrigger(hour=7, minute=0), id='check_exam')
         
-        energy_interval = self.config.get('reminder', {}).get('energy_check_interval_hours', 12)
+        energy_interval = float(self.config.get('reminder', {}).get('energy_check_interval_hours', 24.1))
         self.scheduler.add_job(self._check_energy, IntervalTrigger(hours=energy_interval), id='check_energy')
         
         self._schedule_today_classes()
         self.scheduler.start()
+
+    def reload_config(self, config=None):
+        """热重载提醒配置并即时重新调度"""
+        if config is not None:
+            self.config = config
+        self.username = self.config.get('account', {}).get('username', '')
+
+        # 1. 热重载各个子提醒器
+        if hasattr(self.class_reminder, "reload_config"):
+            self.class_reminder.reload_config(self.config)
+        if hasattr(self.exam_reminder, "reload_config"):
+            self.exam_reminder.reload_config(self.config)
+        if hasattr(self.energy_reminder, "reload_config"):
+            self.energy_reminder.reload_config(self.config)
+
+        # 2. 动态调整电费定时检查频率
+        energy_interval = float(self.config.get('reminder', {}).get('energy_check_interval_hours', 24.1))
+        if getattr(self.scheduler, "running", False) and self.scheduler.get_job('check_energy'):
+            self.scheduler.reschedule_job('check_energy', trigger=IntervalTrigger(hours=energy_interval))
+            logger.info(f"电费检查频率已动态调整为每 {energy_interval} 小时一次")
+
+        # 3. 重新计算并调度今日课程提醒
+        if self.classtable_data and getattr(self.scheduler, "running", False):
+            self._schedule_today_classes()
+
+        # 4. 重新计算并调度考试提醒
+        if self.exam_data and getattr(self.scheduler, "running", False):
+            self._check_exam_upcoming()
+
+        logger.info("ReminderScheduler 已成功完成热重载")
 
     def _refresh_semester(self):
         self.semester_code = self.semester_service.get_current_semester()
@@ -151,7 +181,7 @@ class ReminderScheduler:
             energy_data = {
                 "remain": self.energy_info.electricity_remain,
                 "read_date": self.energy_info.last_read_date,
-                "is_low": self.energy_info.electricity_remain < self.config.get("reminder", {}).get("energy_threshold", 50),
+                "is_low": self.energy_info.electricity_remain < float(self.config.get("reminder", {}).get("energy_threshold", 100)),
                 "error": None
             }
         else:
@@ -163,7 +193,7 @@ class ReminderScheduler:
                         energy_data = {
                             "remain": float(ed.get("electricity_remain", 0.0)),
                             "read_date": str(ed.get("last_read_date", "")),
-                            "is_low": float(ed.get("electricity_remain", 0.0)) < self.config.get("reminder", {}).get("energy_threshold", 50),
+                            "is_low": float(ed.get("electricity_remain", 0.0)) < float(self.config.get("reminder", {}).get("energy_threshold", 100)),
                             "cached": True,
                             "error": self.sync_errors.get("energy")
                         }

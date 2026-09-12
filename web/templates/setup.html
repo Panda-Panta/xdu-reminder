@@ -56,11 +56,11 @@
     <div class="grid-2">
       <div class="form-group">
         <label for="energy_threshold">电费不足报警阈值 (度)</label>
-        <input type="number" id="energy_threshold" name="energy_threshold" class="form-control" value="{{ config.get('reminder.energy_threshold', 50) }}" min="5" max="500">
+        <input type="number" step="1" id="energy_threshold" name="energy_threshold" class="form-control" value="{{ config.get('reminder.energy_threshold', 100) }}" min="1" max="1000">
       </div>
       <div class="form-group">
         <label for="energy_check_interval_hours">电费检查频率 (小时)</label>
-        <input type="number" id="energy_check_interval_hours" name="energy_check_interval_hours" class="form-control" value="{{ config.get('reminder.energy_check_interval_hours', 4) }}" min="1" max="48">
+        <input type="number" step="0.1" id="energy_check_interval_hours" name="energy_check_interval_hours" class="form-control" value="{{ config.get('reminder.energy_check_interval_hours', 24.1) }}" min="0.1" max="168">
       </div>
     </div>
 

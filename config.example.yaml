@@ -14,8 +14,8 @@ reminder:
   class_minutes_before: 30        # 课前提醒提前分钟数
   exam_minutes_before: 30         # 考前提醒提前分钟数
   exam_day_before_notify: true    # 考试前一天晚上 20:00 是否提醒
-  energy_threshold: 50            # 电费余额低于此值(度)时提醒
-  energy_check_interval_hours: 4  # 电费查询间隔(小时)
+  energy_threshold: 100            # 电费余额低于此值(度)时提醒
+  energy_check_interval_hours: 24.1 # 电费查询间隔(小时)
   energy_max_alerts_per_day: 2    # 低电量每天最多提醒次数
 
 notifiers:

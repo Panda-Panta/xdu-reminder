@@ -6,7 +6,15 @@ from services.classtable import ClassTableService
 class ClassReminder:
     def __init__(self, notify_manager, config):
         self.notify_manager = notify_manager
+        self.config = config
         self.minutes_before = config.get('reminder', {}).get('class_minutes_before', 30)
+
+    def reload_config(self, config=None):
+        """热重载提醒配置"""
+        if config is not None:
+            self.config = config
+        self.minutes_before = self.config.get('reminder', {}).get('class_minutes_before', 30)
+        logger.info(f"ClassReminder 热重载: 提前提醒时间调整为 {self.minutes_before} 分钟")
     
     def get_today_reminders(self, classtable_data, scheduler):
         try:
@@ -23,15 +31,19 @@ class ClassReminder:
                 class_dt = datetime.strptime(dt_str, '%Y-%m-%d %H:%M')
                 
                 remind_time = class_dt - timedelta(minutes=self.minutes_before)
+                job_id = f'class_remind_{cls["period_start"]}'
+                # 若已存在旧的同名任务，先移除以便更新触发时间
+                existing_job = scheduler.get_job(job_id)
+                if existing_job:
+                    scheduler.remove_job(job_id)
+
                 if remind_time > now:
-                    job_id = f'class_remind_{cls["period_start"]}'
-                    if not scheduler.get_job(job_id):
-                        scheduler.add_job(
-                            self._send_class_reminder, 
-                            DateTrigger(run_date=remind_time),
-                            args=[cls],
-                            id=job_id
-                        )
+                    scheduler.add_job(
+                        self._send_class_reminder, 
+                        DateTrigger(run_date=remind_time),
+                        args=[cls],
+                        id=job_id
+                    )
         except Exception as e:
             logger.error(f"调度今日课程失败: {e}")
     

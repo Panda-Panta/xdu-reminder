@@ -4,11 +4,21 @@ from loguru import logger
 class EnergyReminder:
     def __init__(self, notify_manager, config):
         self.notify_manager = notify_manager
+        self.config = config
         rem_conf = config.get('reminder', {})
-        self.threshold = rem_conf.get('energy_threshold', 50)
-        self.max_alerts_per_day = rem_conf.get('energy_max_alerts_per_day', 2)
+        self.threshold = float(rem_conf.get('energy_threshold', 100))
+        self.max_alerts_per_day = int(rem_conf.get('energy_max_alerts_per_day', 2))
         self._last_alert_date = None
         self._alert_count_today = 0
+
+    def reload_config(self, config=None):
+        """热重载电费提醒配置"""
+        if config is not None:
+            self.config = config
+        rem_conf = self.config.get('reminder', {})
+        self.threshold = float(rem_conf.get('energy_threshold', 100))
+        self.max_alerts_per_day = int(rem_conf.get('energy_max_alerts_per_day', 2))
+        logger.info(f"EnergyReminder 热重载: 报警阈值更新为 {self.threshold} 度，每日最多提醒 {self.max_alerts_per_day} 次")
     
     def check(self, energy_info):
         if energy_info.electricity_remain < self.threshold:
