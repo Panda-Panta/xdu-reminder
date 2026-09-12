@@ -12,6 +12,13 @@ services:
       - "5800:5800"
     volumes:
       - ./data:/app/data
+      - ./auth:/app/auth
+      - ./core:/app/core
+      - ./notifiers:/app/notifiers
+      - ./reminder:/app/reminder
+      - ./services:/app/services
+      - ./web:/app/web
+      - ./main.py:/app/main.py
     environment:
       - TZ=Asia/Shanghai
       - PYTHONUNBUFFERED=1
